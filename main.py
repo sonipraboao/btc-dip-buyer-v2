@@ -18,6 +18,14 @@ Strategy (written from scratch for this competition):
 - Size: scaled by the episode's maximum depth, from 60% of cash for a
   just-qualifying dip up to a hard cap of 80% of cash for a deep one.
   Shallower than 0.4% never trades at all.
+- Depth guard: a buy is skipped when the pool is so thin that the
+  fill's own modelled price impact (state.impact_bps on the intended
+  spend) exceeds 25 bps. The exits below bank +0.6% at best, so an
+  entry impact above 25 bps would hand back a large share of the edge
+  before fees and slippage; a stabilised dip in a thin pool is not an
+  opportunity, it is a cost. On a healthy pool the impact of the
+  largest allowed spend is only ~10-15 bps, so the guard stays silent
+  until liquidity genuinely deteriorates.
 - Exit (asymmetric, sized against the ~26-40 bps round-trip cost):
   take-profit at +1.0% over the average entry cost, a mean-reversion
   exit once the close is back at or above the EMA with at least +0.6%
@@ -55,6 +63,7 @@ STOP_LOSS = 0.007         # -0.7% under average entry cost
 MAX_HOLD_BARS = 480       # time exit
 COOLDOWN_BARS = 20        # rest after a sale
 MAX_SLIPPAGE_BPS = 250
+MAX_ENTRY_IMPACT_BPS = 25  # skip a buy whose modelled impact eats the edge
 
 _closes = []              # every close seen, as floats (price-scale units)
 _ema = []                 # EMA of the closes, same length
@@ -196,6 +205,13 @@ def on_batch(state, batch):
         spend = int(state.cash * fraction)
         _in_episode = False
         if spend < 1_000_000:  # below the 1 USDC minimum notional
+            return []
+        impact = state.impact_bps(SYMBOL, spend)
+        if impact is not None and impact > MAX_ENTRY_IMPACT_BPS:
+            # Thin pool: the fill's own price impact alone would cost
+            # more than the guard allows, leaving too little of the
+            # dip's edge after fees and slippage. Stay in cash; a new
+            # episode must form before the bot may enter again.
             return []
         _order_pending = True
         return [
