@@ -15,9 +15,12 @@ Strategy (written from scratch for this competition):
   rising closes and a close at least 0.08% above the episode low. An
   episode is abandoned if the price recovers to the EMA first, runs past
   40 bars, or deepens past 1.8% below the EMA (a regime break, not a dip).
-- Size: scaled by the episode's maximum depth, from 60% of cash for a
-  just-qualifying dip up to a hard cap of 80% of cash for a deep one.
-  Shallower than 0.4% never trades at all.
+- Size: all-in sizing scaled by the episode's maximum depth, from
+  ~95% of cash for a just-qualifying dip (0.4% deep) up to a hard cap
+  of 100% of cash for a deep one (0.8% or deeper). Shallower than 0.4%
+  never trades at all. The 25 bps thin-depth impact guard below stays
+  strict: going all-in never overrides it, so a qualifying dip in a
+  thin pool is still skipped rather than filled at a ruinous impact.
 - Depth guard: a buy is skipped when the pool is so thin that the
   fill's own modelled price impact (state.impact_bps on the intended
   spend) exceeds 25 bps. The exits below bank +0.6% at best, so an
@@ -54,9 +57,9 @@ EPISODE_MAX_BARS = 40     # a dip that takes longer is not stabilising
 EPISODE_MAX_DEPTH = 0.018  # deeper than 1.8% below the EMA is a break
 BOUNCE = 0.0008           # rebound must lift the close 0.08% off the low
 RISES_NEEDED = 2          # consecutive rising closes confirming the turn
-BASE_FRACTION = 0.40      # position scale: fraction = base + depth * gain
-DEPTH_GAIN = 50.0
-MAX_FRACTION = 0.80       # never expose more than 80% of cash
+BASE_FRACTION = 0.90      # position scale: fraction = base + depth * gain
+DEPTH_GAIN = 12.5
+MAX_FRACTION = 1.00       # all-in sizing: up to 100% of cash per entry
 TAKE_PROFIT = 0.010       # +1.0% over average entry cost
 MEAN_EXIT_MIN = 0.006     # at/above the EMA, bank at least +0.6%
 STOP_LOSS = 0.007         # -0.7% under average entry cost
